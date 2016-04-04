@@ -1,9 +1,11 @@
 ﻿#Requires -Version 5
-filter Mixin-DemandWareLogFileProperties {
-    $_ | Add-Member -MemberType ScriptProperty -Name FileName -Value { $([System.IO.FileInfo]$DemandwareLogFile.URI).Name }
+#Requires –Modules Get-CharacterEncoding
+
+filter Mixin-DemandWareLogFileMetaDataProperties {
+    $_ | Add-Member -MemberType ScriptProperty -Name FileName -Value { $([System.IO.FileInfo]$This.URI).Name }
 }
 
-function Get-DemandwareLogFile {
+function Get-DemandwareLogFileMetaData {
     [CmdletBinding()]
     param(
         $DemandwareInstanceURI,
@@ -33,9 +35,61 @@ function Get-DemandwareLogFile {
             <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/jceProviderUsage-blade0-0-appserver.log}"><tt>jceProviderUsage-blade0-0-appserver.log</tt></a>
 "@
 
-    $DemandwareLogFiles = $result.Content | ConvertFrom-String -TemplateContent $Template
-    $DemandwareLogFiles | Mixin-DemandWareLogFileProperties
-    $DemandwareLogFiles
+    $DemandwareLogFilesMetaData = $result.Content | ConvertFrom-String -TemplateContent $Template
+    $DemandwareLogFilesMetaData | Mixin-DemandWareLogFileMetaDataProperties
+    $DemandwareLogFilesMetaData
+}
+
+function Invoke-DemandWareLogFileDownload {
+    param(
+        $DemandwareLogFileMetaData,
+        $DemandwareInstanceURI,
+        $Credential,
+        $PathToDemandwareLogFileOnDisk
+    )
+        $URIOfDemandwareLogFile = "$DemandwareInstanceURI$($DemandwareLogFileMetaData.URI)"
+        
+        Invoke-WebRequest -Uri $URIOfDemandwareLogFile -Credential $Credential |
+        Select -ExpandProperty Content |
+        Out-File $PathToDemandwareLogFileOnDisk -Encoding ascii -NoNewline #Should be UTF-8 but currently there is no support for supression the BOM which breaks java/logstash
+        
+        $NewlyCreatedDemandwareLogFile = Get-Item $PathToDemandwareLogFileOnDisk
+        $NewlyCreatedDemandwareLogFile.LastWriteTime = $DemandwareLogFileMetaData.LastModified
+}
+
+function Invoke-DemandWarePartialLogFileDownload {
+    param(
+        $DemandwareLogFileMetaData,
+        $DemandwareInstanceURI,
+        $Credential,
+        $PathToDemandwareLogFileOnDisk
+    )
+        $URIOfDemandwareLogFile = "$DemandwareInstanceURI$($DemandwareLogFileMetaData.URI)"
+        
+        $DemandwareLogFileCharacterEncoding = Get-FileCharacterEncoding -Path $DemandwareLogFileOnDisk
+        if($DemandwareLogFileCharacterEncoding.EncodingName -ne "Unicode (UTF-8)") { 
+            Throw @"
+Appending to the end of a file instead of downloading the whole file is only supported for ASCII or UTF-8 character encoded files.
+$DemandwareLogFileOnDisk's character encoding is $($DemandwareLogFileCharacterEncoding.EncodingName).
+"@
+        }
+        $RangeIndexOfStartingByteWeNeedToAddToFileOnDisk = $DemandwareLogFileOnDisk.length
+
+        $WebRequest = [System.Net.WebRequest]::Create($URIOfDemandwareLogFile)
+        $WebRequest.AddRange($RangeIndexOfStartingByteWeNeedToAddToFileOnDisk) 
+        $WebRequest.Credentials = $Credential.GetNetworkCredential()
+        $WebResponse = $WebRequest.GetResponse()
+        $WebResponseStream = $WebResponse.GetResponseStream()
+        $StreamReader = new-object System.IO.StreamReader $WebResponseStream
+        $ResponeData = $StreamReader.ReadToEnd()
+        if ($ResponeData) {
+            $ResponeData | Out-File -Append $DemandwareLogFileOnDisk -Encoding ascii -NoNewline
+
+            $ResponeData | Format-List * | Out-String -Stream | Write-Verbose
+
+            $NewlyCreatedDemandwareLogFile = Get-Item $PathToDemandwareLogFileOnDisk
+            $NewlyCreatedDemandwareLogFile.LastWriteTime = $DemandwareLogFileMetaData.LastModified
+        } else { throw "ResponseData came back empty for the requested range" }
 }
 
 
@@ -47,50 +101,20 @@ function Sync-DemandwareLogFile {
         $LogFileDestination
     )
     
-    $DemandwareLogFiles = Get-DemandwareLogFile -DemandwareInstanceURI $DemandwareInstanceURI -Credential $Credential
+    $DemandwareLogFilesMetaData = Get-DemandwareLogFileMetaData -DemandwareInstanceURI $DemandwareInstanceURI -Credential $Credential
 
-    Foreach ($DemandwareLogFile in $DemandwareLogFiles) {
-        $PathToDemandwareLogFileOnDisk = "$LogFileDestination\$($DemandwareLogFile.FileName)"
-        $URIOfDemandwareLogFile = "$DemandwareInstanceURI$($DemandwareLogFile.URI)"
+    Foreach ($DemandwareLogFileMetaData in $DemandwareLogFilesMetaData) {
+        $PathToDemandwareLogFileOnDisk = "$LogFileDestination\$($DemandwareLogFileMetaData.FileName)"
+        $URIOfDemandwareLogFile = "$DemandwareInstanceURI$($DemandwareLogFileMetaData.URI)"
 
         $DemandwareLogFileOnDisk = Get-Item $PathToDemandwareLogFileOnDisk -ErrorAction SilentlyContinue
 
         if ( -not $DemandwareLogFileOnDisk) {
-            Write-Debug "File not found on disk $PathToDemandwareLogFileOnDisk, downloading file"
-        
-            Invoke-WebRequest -Uri $URIOfDemandwareLogFile -Credential $Credential |
-            Select -ExpandProperty Content |
-            Out-File $PathToDemandwareLogFileOnDisk -NoNewline
-        
-            $NewlyCreatedDemandwareLogFile = Get-Item $PathToDemandwareLogFileOnDisk
-            $NewlyCreatedDemandwareLogFile.LastWriteTime = $DemandwareLogFile.LastModified
-
-        } else {
-
-            if ($DemandwareLogFileOnDisk.LastWriteTime -lt $DemandwareLogFile.LastModified) {      
-                Write-Debug "File found on disk and is old $PathToDemandwareLogFileOnDisk $URIOfDemandwareLogFile $($File.length) $($DemandwareLogFile.LastModified)"
-
-                # Powershell Out-* commandlets default to UTF-16 using two bytes for each character, demandware's servers are storing the logs in an encoding which uses one byte per character
-                $LengthOfUTF16EncodedFileOnDisk = $DemandwareLogFileOnDisk.length
-                $LenghtOfFileContentAsIfStoredOnDemandware = $LengthOfUTF16EncodedFileOnDisk/2
-
-                # -1 because http range header usese a zero-indexed range, requesting the 2nd byte to the end of the file would be 1-, 1st byte to end 0-
-                $RangeIndexOfStartingByteWeNeedToAddToFileOnDisk = $LenghtOfFileContentAsIfStoredOnDemandware-1
-            
-                $WebRequest = [System.Net.WebRequest]::Create($URIOfDemandwareLogFile)
-                $WebRequest.AddRange($RangeIndexOfStartingByteWeNeedToAddToFileOnDisk) 
-                $WebRequest.Credentials = $Credential.GetNetworkCredential()
-                $WebResponse = $WebRequest.GetResponse()
-                $WebResponseStream = $WebResponse.GetResponseStream()
-                $StreamReader = new-object System.IO.StreamReader $WebResponseStream
-                $ResponeData = $StreamReader.ReadToEnd()
-                $ResponeData | Out-File -Append $DemandwareLogFileOnDisk -NoNewline
-
-                Write-Debug $ResponeData
-
-                $NewlyCreatedDemandwareLogFile = Get-Item $PathToDemandwareLogFileOnDisk
-                $NewlyCreatedDemandwareLogFile.LastWriteTime = $DemandwareLogFile.LastModified
-            }
+            Write-Verbose "File not found on disk $PathToDemandwareLogFileOnDisk, downloading file"
+            Invoke-DemandWareLogFileDownload -DemandwareLogFileMetaData $DemandwareLogFileMetaData -DemandwareInstanceURI $DemandwareInstanceURI -Credential $Credential -PathToDemandwareLogFileOnDisk $PathToDemandwareLogFileOnDisk
+        } elseif ($DemandwareLogFileOnDisk.LastWriteTime -lt $DemandwareLogFileMetaData.LastModified) {                  
+            Write-Verbose "File found on disk and is old $PathToDemandwareLogFileOnDisk $URIOfDemandwareLogFile $($DemandwareLogFileOnDisk.length) DemandwareLogFileOnDisk.LastWriteTime: $($DemandwareLogFileOnDisk.LastWriteTime) DemandwareLogFileMetaData.LastModified: $($DemandwareLogFileMetaData.LastModified)"
+            Invoke-DemandWarePartialLogFileDownload -DemandwareLogFileMetaData $DemandwareLogFileMetaData -DemandwareInstanceURI $DemandwareInstanceURI -Credential $Credential -PathToDemandwareLogFileOnDisk $PathToDemandwareLogFileOnDisk
         }
     }
 }
