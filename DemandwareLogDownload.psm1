@@ -110,10 +110,10 @@ function Sync-DemandwareLogFile {
         $DemandwareLogFileOnDisk = Get-Item $PathToDemandwareLogFileOnDisk -ErrorAction SilentlyContinue
 
         if ( -not $DemandwareLogFileOnDisk) {
-            Write-Verbose "File not found on disk $PathToDemandwareLogFileOnDisk, downloading file"
+            Write-Verbose "$(Get-Date): File not found on disk $PathToDemandwareLogFileOnDisk, downloading file"
             Invoke-DemandWareLogFileDownload -DemandwareLogFileMetaData $DemandwareLogFileMetaData -DemandwareInstanceURI $DemandwareInstanceURI -Credential $Credential -PathToDemandwareLogFileOnDisk $PathToDemandwareLogFileOnDisk
         } elseif ($DemandwareLogFileOnDisk.LastWriteTime -lt $DemandwareLogFileMetaData.LastModified) {                  
-            Write-Verbose "File found on disk and is old $PathToDemandwareLogFileOnDisk $URIOfDemandwareLogFile $($DemandwareLogFileOnDisk.length) DemandwareLogFileOnDisk.LastWriteTime: $($DemandwareLogFileOnDisk.LastWriteTime) DemandwareLogFileMetaData.LastModified: $($DemandwareLogFileMetaData.LastModified)"
+            Write-Verbose "$(Get-Date): File found on disk and is old $PathToDemandwareLogFileOnDisk $URIOfDemandwareLogFile $($DemandwareLogFileOnDisk.length) DemandwareLogFileOnDisk.LastWriteTime: $($DemandwareLogFileOnDisk.LastWriteTime) DemandwareLogFileMetaData.LastModified: $($DemandwareLogFileMetaData.LastModified)"
             Invoke-DemandWarePartialLogFileDownload -DemandwareLogFileMetaData $DemandwareLogFileMetaData -DemandwareInstanceURI $DemandwareInstanceURI -Credential $Credential -PathToDemandwareLogFileOnDisk $PathToDemandwareLogFileOnDisk
         }
     }
