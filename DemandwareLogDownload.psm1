@@ -15,27 +15,43 @@ function Get-DemandwareLogFileMetaData {
     $DemandwareWebDavLogURI = "$DemandwareInstanceURI/on/demandware.servlet/webdav/Sites/Logs"
     $Result = Invoke-WebRequest -Uri $DemandwareWebDavLogURI -Credential $Credential
 
-    $Template = @"
-            <a href="/on/demandware.servlet/webdav/Sites/Logs/dbinit-sql"><tt>dbinit-sql</tt></a>
-            <a href="/on/demandware.servlet/webdav/Sites/Logs/deprecation"><tt>deprecation</tt></a>
-            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/analyticsengine-blade0-0-appserver-20160329.log}"><tt>analyticsengine-blade0-0-appserver-20160329.log</tt></a>
-                        <td align="right"><tt>{[decimal]FileSize:0.1} kb</tt></td>
-                        <td align="right"><tt>{[DateTime]LastModified:Tue, 29 Mar 2016 03:07:37 GMT}</tt></td>
-            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/analyticsengine-blade1-2-appserver-20160329.log}"><tt>analyticsengine-blade1-2-appserver-20160329.log</tt></a>
-                        <td align="right"><tt>{[decimal]FileSize:10.0} kb</tt></td>
-                        <td align="right"><tt>{[DateTime]LastModified:Wed, 30 Mar 2016 21:56:10 GMT}</tt></td>
-            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/analyticsengine-blade1-7-appserver-20160328.log}"><tt>analyticsengine-blade1-7-appserver-20160328.log</tt></a>
-                    <td align="right"><tt>{[decimal]FileSize:202.7} kb</tt></td>
-            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/api-blade0-0-appserver-20160329.log}"><tt>api-blade0-0-appserver-20160329.log</tt></a>
-                    <td align="right"><tt>{[decimal]FileSize:8.8} kb</tt></td>
-            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/custom-int_bronto-blade0-0-appserver-20160329.log}"><tt>custom-int_bronto-blade0-0-appserver-20160329.log</tt></a>
-                    <td align="right"><tt>{[decimal]FileSize:227.9} kb</tt></td>
-            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/custom-int_bronto-blade1-2-appserver-20160329.log}"><tt>custom-int_bronto-blade1-2-appserver-20160329.log</tt></a>
-                    <td align="right"><tt>{[decimal]FileSize:23.3} kb</tt></td>
-            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/jceProviderUsage-blade0-0-appserver.log}"><tt>jceProviderUsage-blade0-0-appserver.log</tt></a>
-"@
+#    $Template = @"
+#            <a href="/on/demandware.servlet/webdav/Sites/Logs/dbinit-sql"><tt>dbinit-sql</tt></a>
+#            <a href="/on/demandware.servlet/webdav/Sites/Logs/deprecation"><tt>deprecation</tt></a>
+#            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/analyticsengine-blade0-0-appserver-20160329.log}"><tt>analyticsengine-blade0-0-appserver-20160329.log</tt></a>
+#                        <td align="right"><tt>{[decimal]FileSize:0.1} kb</tt></td>
+#                        <td align="right"><tt>{[DateTime]LastModified:Tue, 29 Mar 2016 03:07:37 GMT}</tt></td>
+#            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/analyticsengine-blade1-2-appserver-20160329.log}"><tt>analyticsengine-blade1-2-appserver-20160329.log</tt></a>
+#                        <td align="right"><tt>{[decimal]FileSize:10.0} kb</tt></td>
+#                        <td align="right"><tt>{[DateTime]LastModified:Wed, 30 Mar 2016 21:56:10 GMT}</tt></td>
+#            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/analyticsengine-blade1-7-appserver-20160328.log}"><tt>analyticsengine-blade1-7-appserver-20160328.log</tt></a>
+#                    <td align="right"><tt>{[decimal]FileSize:202.7} kb</tt></td>
+#            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/api-blade0-0-appserver-20160329.log}"><tt>api-blade0-0-appserver-20160329.log</tt></a>
+#                    <td align="right"><tt>{[decimal]FileSize:8.8} kb</tt></td>
+#            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/custom-int_bronto-blade0-0-appserver-20160329.log}"><tt>custom-int_bronto-blade0-0-appserver-20160329.log</tt></a>
+#                    <td align="right"><tt>{[decimal]FileSize:227.9} kb</tt></td>
+#            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/custom-int_bronto-blade1-2-appserver-20160329.log}"><tt>custom-int_bronto-blade1-2-appserver-20160329.log</tt></a>
+#                    <td align="right"><tt>{[decimal]FileSize:23.3} kb</tt></td>
+#            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/jceProviderUsage-blade0-0-appserver.log}"><tt>jceProviderUsage-blade0-0-appserver.log</tt></a>
+#"@
+#
+#    $DemandwareLogFilesMetaData = $result.Content | ConvertFrom-String -TemplateContent $Template
+    
+    $Tables = @($Result.ParsedHtml.getElementsByTagName("TABLE"))
 
-    $DemandwareLogFilesMetaData = $result.Content | ConvertFrom-String -TemplateContent $Template
+    $DemandwareLogFilesMetaData = foreach ($Table in $Tables) {
+        $Rows = @($Table.Rows)
+        foreach ($Row in $Rows[1..$Rows.Length]) {
+            $Cells = @($Row.cells)
+            [pscustomobject][ordered]@{
+                URI = $("/" + $($Cells[0].childNodes | where tagname -match "A" | select -ExpandProperty pathname));
+                Size = $Cells[1].innerText.Trim();
+                LastModified = [datetime]$Cells[2].innerText.Trim();
+            }
+        }
+    }
+    $DemandwareLogFilesMetaData = $DemandwareLogFilesMetaData | where {$_.size}
+
     $DemandwareLogFilesMetaData | Mixin-DemandWareLogFileMetaDataProperties
     $DemandwareLogFilesMetaData
 }
@@ -64,17 +80,22 @@ function Invoke-DemandWarePartialLogFileDownload {
         $Credential,
         $PathToDemandwareLogFileOnDisk
     )
-        $URIOfDemandwareLogFile = "$DemandwareInstanceURI$($DemandwareLogFileMetaData.URI)"
+    $URIOfDemandwareLogFile = "$DemandwareInstanceURI$($DemandwareLogFileMetaData.URI)"
         
-        $DemandwareLogFileCharacterEncoding = Get-FileCharacterEncoding -Path $DemandwareLogFileOnDisk
-        if($DemandwareLogFileCharacterEncoding.EncodingName -ne "Unicode (UTF-8)") { 
-            Throw @"
+    $DemandwareLogFileCharacterEncoding = Get-Item $DemandwareLogFileOnDisk | Get-FileCharacterEncoding
+    if($DemandwareLogFileCharacterEncoding.EncodingName -ne "Unicode (UTF-8)") { 
+        Throw @"
 Appending to the end of a file instead of downloading the whole file is only supported for ASCII or UTF-8 character encoded files.
 $DemandwareLogFileOnDisk's character encoding is $($DemandwareLogFileCharacterEncoding.EncodingName).
 "@
-        }
-        $RangeIndexOfStartingByteWeNeedToAddToFileOnDisk = $DemandwareLogFileOnDisk.length
+    }
 
+    $RangeIndexOfStartingByteWeNeedToAddToFileOnDisk = $DemandwareLogFileOnDisk.length
+    $HeadResult = Invoke-WebRequest -Uri $URIOfDemandwareLogFile -Credential $Credential -Method Head
+    $DemandwareLogFileTotalBytesOnServer = [int]$HeadResult.Headers.'Content-Length'
+
+    if ($RangeIndexOfStartingByteWeNeedToAddToFileOnDisk -lt $DemandwareLogFileTotalBytesOnServer) {
+        
         $WebRequest = [System.Net.WebRequest]::Create($URIOfDemandwareLogFile)
         $WebRequest.AddRange($RangeIndexOfStartingByteWeNeedToAddToFileOnDisk) 
         $WebRequest.Credentials = $Credential.GetNetworkCredential()
@@ -90,6 +111,12 @@ $DemandwareLogFileOnDisk's character encoding is $($DemandwareLogFileCharacterEn
             $NewlyCreatedDemandwareLogFile = Get-Item $PathToDemandwareLogFileOnDisk
             $NewlyCreatedDemandwareLogFile.LastWriteTime = $DemandwareLogFileMetaData.LastModified
         } else { throw "ResponseData came back empty for the requested range" }
+    } elseif ($RangeIndexOfStartingByteWeNeedToAddToFileOnDisk -eq $DemandwareLogFileTotalBytesOnServer) {
+        $DemandwareLogFile = Get-Item $PathToDemandwareLogFileOnDisk
+        $DemandwareLogFile.LastWriteTime = $DemandwareLogFileMetaData.LastModified
+    } else {
+        Throw "The file on Disk was bigger than the size of the file on the server"
+    }    
 }
 
 
@@ -102,6 +129,13 @@ function Sync-DemandwareLogFile {
     )
     
     $DemandwareLogFilesMetaData = Get-DemandwareLogFileMetaData -DemandwareInstanceURI $DemandwareInstanceURI -Credential $Credential
+    #$DemandwareLogFilesMetaData = $DemandwareLogFilesMetaData | where {
+    #    $_.FileName -match "customerror-" -or
+    #    $_.FileName -match "error-" -or
+    #    $_.FileName -match "custom-int_bronto-" -or
+    #    $_.FileName -match "jobs-" -or
+    #    $_.FileName -match "service-taxware-"
+    #}
 
     Foreach ($DemandwareLogFileMetaData in $DemandwareLogFilesMetaData) {
         $PathToDemandwareLogFileOnDisk = "$LogFileDestination\$($DemandwareLogFileMetaData.FileName)"
