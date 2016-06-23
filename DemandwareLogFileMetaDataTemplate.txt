@@ -1,0 +1,17 @@
+﻿            <a href="/on/demandware.servlet/webdav/Sites/Logs/dbinit-sql"><tt>dbinit-sql</tt></a>
+            <a href="/on/demandware.servlet/webdav/Sites/Logs/deprecation"><tt>deprecation</tt></a>
+            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/analyticsengine-blade0-0-appserver-20160329.log}"><tt>analyticsengine-blade0-0-appserver-20160329.log</tt></a>
+                        <td align="right"><tt>{[decimal]FileSize:0.1} kb</tt></td>
+                        <td align="right"><tt>{[DateTime]LastModified:Tue, 29 Mar 2016 03:07:37 GMT}</tt></td>
+            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/analyticsengine-blade1-2-appserver-20160329.log}"><tt>analyticsengine-blade1-2-appserver-20160329.log</tt></a>
+                        <td align="right"><tt>{[decimal]FileSize:10.0} kb</tt></td>
+                        <td align="right"><tt>{[DateTime]LastModified:Wed, 30 Mar 2016 21:56:10 GMT}</tt></td>
+            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/analyticsengine-blade1-7-appserver-20160328.log}"><tt>analyticsengine-blade1-7-appserver-20160328.log</tt></a>
+                    <td align="right"><tt>{[decimal]FileSize:202.7} kb</tt></td>
+            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/api-blade0-0-appserver-20160329.log}"><tt>api-blade0-0-appserver-20160329.log</tt></a>
+                    <td align="right"><tt>{[decimal]FileSize:8.8} kb</tt></td>
+            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/custom-int_bronto-blade0-0-appserver-20160329.log}"><tt>custom-int_bronto-blade0-0-appserver-20160329.log</tt></a>
+                    <td align="right"><tt>{[decimal]FileSize:227.9} kb</tt></td>
+            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/custom-int_bronto-blade1-2-appserver-20160329.log}"><tt>custom-int_bronto-blade1-2-appserver-20160329.log</tt></a>
+                    <td align="right"><tt>{[decimal]FileSize:23.3} kb</tt></td>
+            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/jceProviderUsage-blade0-0-appserver.log}"><tt>jceProviderUsage-blade0-0-appserver.log</tt></a>

@@ -9,48 +9,33 @@ function Get-DemandwareLogFileMetaData {
     [CmdletBinding()]
     param(
         $DemandwareInstanceURI,
-        $Credential
+        $Credential,
+        [switch]$ParseMetaDataWithSelectString = $false
     )
     
     $DemandwareWebDavLogURI = "$DemandwareInstanceURI/on/demandware.servlet/webdav/Sites/Logs"
     $Result = Invoke-WebRequest -Uri $DemandwareWebDavLogURI -Credential $Credential
 
-#    $Template = @"
-#            <a href="/on/demandware.servlet/webdav/Sites/Logs/dbinit-sql"><tt>dbinit-sql</tt></a>
-#            <a href="/on/demandware.servlet/webdav/Sites/Logs/deprecation"><tt>deprecation</tt></a>
-#            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/analyticsengine-blade0-0-appserver-20160329.log}"><tt>analyticsengine-blade0-0-appserver-20160329.log</tt></a>
-#                        <td align="right"><tt>{[decimal]FileSize:0.1} kb</tt></td>
-#                        <td align="right"><tt>{[DateTime]LastModified:Tue, 29 Mar 2016 03:07:37 GMT}</tt></td>
-#            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/analyticsengine-blade1-2-appserver-20160329.log}"><tt>analyticsengine-blade1-2-appserver-20160329.log</tt></a>
-#                        <td align="right"><tt>{[decimal]FileSize:10.0} kb</tt></td>
-#                        <td align="right"><tt>{[DateTime]LastModified:Wed, 30 Mar 2016 21:56:10 GMT}</tt></td>
-#            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/analyticsengine-blade1-7-appserver-20160328.log}"><tt>analyticsengine-blade1-7-appserver-20160328.log</tt></a>
-#                    <td align="right"><tt>{[decimal]FileSize:202.7} kb</tt></td>
-#            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/api-blade0-0-appserver-20160329.log}"><tt>api-blade0-0-appserver-20160329.log</tt></a>
-#                    <td align="right"><tt>{[decimal]FileSize:8.8} kb</tt></td>
-#            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/custom-int_bronto-blade0-0-appserver-20160329.log}"><tt>custom-int_bronto-blade0-0-appserver-20160329.log</tt></a>
-#                    <td align="right"><tt>{[decimal]FileSize:227.9} kb</tt></td>
-#            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/custom-int_bronto-blade1-2-appserver-20160329.log}"><tt>custom-int_bronto-blade1-2-appserver-20160329.log</tt></a>
-#                    <td align="right"><tt>{[decimal]FileSize:23.3} kb</tt></td>
-#            <a href="{URI*:/on/demandware.servlet/webdav/Sites/Logs/jceProviderUsage-blade0-0-appserver.log}"><tt>jceProviderUsage-blade0-0-appserver.log</tt></a>
-#"@
-#
-#    $DemandwareLogFilesMetaData = $result.Content | ConvertFrom-String -TemplateContent $Template
+    if ($ParseMetaDataWithSelectString) {
+        $Template = Get-Content $PSScriptRoot\DemandwareLogFileMetaDataTemplate.txt
+        $DemandwareLogFilesMetaData = $result.Content | ConvertFrom-String -TemplateContent $Template
+    } else {
     
-    $Tables = @($Result.ParsedHtml.getElementsByTagName("TABLE"))
+        $Tables = @($Result.ParsedHtml.getElementsByTagName("TABLE"))
 
-    $DemandwareLogFilesMetaData = foreach ($Table in $Tables) {
-        $Rows = @($Table.Rows)
-        foreach ($Row in $Rows[1..$Rows.Length]) {
-            $Cells = @($Row.cells)
-            [pscustomobject][ordered]@{
-                URI = $("/" + $($Cells[0].childNodes | where tagname -match "A" | select -ExpandProperty pathname));
-                Size = $Cells[1].innerText.Trim();
-                LastModified = [datetime]$Cells[2].innerText.Trim();
+        $DemandwareLogFilesMetaData = foreach ($Table in $Tables) {
+            $Rows = @($Table.Rows)
+            foreach ($Row in $Rows[1..$Rows.Length]) {
+                $Cells = @($Row.cells)
+                [pscustomobject][ordered]@{
+                    URI = $("/" + $($Cells[0].childNodes | where tagname -match "A" | select -ExpandProperty pathname));
+                    Size = $Cells[1].innerText.Trim();
+                    LastModified = [datetime]$Cells[2].innerText.Trim();
+                }
             }
         }
+        $DemandwareLogFilesMetaData = $DemandwareLogFilesMetaData | where {$_.size}
     }
-    $DemandwareLogFilesMetaData = $DemandwareLogFilesMetaData | where {$_.size}
 
     $DemandwareLogFilesMetaData | Mixin-DemandWareLogFileMetaDataProperties
     $DemandwareLogFilesMetaData
