@@ -17,7 +17,7 @@ function Get-DemandwareLogFileMetaData {
     $Result = Invoke-WebRequest -Uri $DemandwareWebDavLogURI -Credential $Credential
 
     if ($ParseMetaDataWithSelectString) {
-        $Template = Get-Content $PSScriptRoot\DemandwareLogFileMetaDataTemplate.txt
+        $Template = Get-Content $PSScriptRoot\DemandwareLogFileMetaDataTemplate.txt | Out-String
         $DemandwareLogFilesMetaData = $result.Content | ConvertFrom-String -TemplateContent $Template
     } else {
     
